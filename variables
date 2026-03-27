@@ -1,0 +1,4 @@
+first_name = "dimitris"
+last_name = "pngtpls"
+full_name = first_name + " " + last_name
+print("hello " + full_name)

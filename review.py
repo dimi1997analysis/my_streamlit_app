@@ -1,0 +1,18 @@
+name = "Dimi"
+#print(name.find("i"))
+#print(name.capitalize())
+#print(name.upper())
+#print(name.lower())
+#print(name.replace("i","o"))
+#a = "3"
+#print("this is a:" + str(int(a)*3))
+#name = input("whats your name?")
+#age = input("whats your age?")
+#height = float(input("whats your height?"))
+#print("hello " + name  )
+#print("you are " + str(int(age)*2) + " years old")
+#print("your height is : " + str(height) + "cm" )
+#print(f"hello {name} you are {age} years old and your height is {height}")
+name = input("what is your name?")
+age = input("whats your age?")
+print(f"hello {name} you are {age} years old")

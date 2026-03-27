@@ -1,0 +1,12 @@
+#type casting 
+
+a = 2 #int
+b = 1.0 #float
+c = "3" #str
+
+a = str(a)
+
+
+print("this is " + a)
+print(b)
+print("this is " + str(int(c)*3))

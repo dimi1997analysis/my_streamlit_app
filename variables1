@@ -1,0 +1,4 @@
+age = 26
+age +=2
+print("you are : " + str(age) + " years old")
+print(type(age))

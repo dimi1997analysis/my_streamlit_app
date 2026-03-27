@@ -1,0 +1,16 @@
+import math
+
+pi = 9.8596
+x = 3
+y = 2
+z = 1
+
+#print(round(pi))
+#print(math.ceil(pi)) ---> pano akeraios
+#print(math.floor(pi)) ---> kato akeraios
+#print(abs(pi)) ---> apoliti timi
+#print(pow(pi,3)) ---> ipsosi se dinami
+#print(math.sqrt(pi)) ---> tetragoniki riza 
+print(max(x,y,z))
+print(min(x,y,z))
+ 

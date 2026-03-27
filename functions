@@ -1,0 +1,13 @@
+name = "dimitris 2ngtpls"
+#print(len(name))
+#print(name.find("m"))
+#print(name.capitalize()) ---> proto gramma kefalaio
+#print(name.upper()) ---> kefalaia ola 
+#print(name.lower()) ---> ola mikra
+#print(name.isdigit()) ---> elegxei an iparxei arithmos(mono arithmous)
+#print(name.isalpha()) ---> elegxei gia grammata ektos tou space
+#print(name.count("m")) ---> metraei posos fores emfaniyete o xaraktiras pou anazitas
+#print(name.replace("2", "p")) ---> antikatastasi xaraktiron
+#print(name*3)
+name = input("what is your name? : ")
+print(name)
