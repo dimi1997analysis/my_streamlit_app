@@ -1,4 +1,5 @@
 streamlit
-yfinance
+yfinance>=0.2.31
 plotly
 pandas
+requests
