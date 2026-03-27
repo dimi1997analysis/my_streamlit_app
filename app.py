@@ -11,7 +11,7 @@ st.set_page_config(
 )
 
 st.title("📈 Εφαρμογή Αξιολόγησης Επενδύσεων")
-st.markdown("Ανάλυση μετοχών, κρυπτονομισμάτων, ETFs και ομολόγων σε πραγματικό χρόνο")
+st.markdown("Ανάλυση μετοχών, κρυπτονομισμάτων και ETFs σε πραγματικό χρόνο")
 
 # ============================================================
 # ΠΛΕΥΡΙΚΟ ΜΕΝΟΥ
@@ -25,15 +25,12 @@ category = st.sidebar.selectbox(
 
 if category == "Μετοχές":
     default_symbols = "AAPL, MSFT, GOOGL"
-    hint = "π.χ. AAPL, MSFT, TSLA"
 elif category == "Κρυπτονομίσματα":
     default_symbols = "BTC-USD, ETH-USD"
-    hint = "π.χ. BTC-USD, ETH-USD"
 else:
-    default_symbols = "SPY, QQQ, TLT"
-    hint = "π.χ. SPY, GLD"
+    default_symbols = "SPY, QQQ, GLD"
 
-symbols_input = st.sidebar.text_input(f"Σύμβολα ({hint}):", value=default_symbols)
+symbols_input = st.sidebar.text_input("Εισάγετε Σύμβολα (χωρισμένα με κόμμα):", value=default_symbols)
 
 period_map = {
     "1 Εβδομάδα": "7d", "1 Μήνας": "1mo", "3 Μήνες": "3mo",
@@ -45,96 +42,102 @@ selected_period = period_map[selected_period_label]
 load_data = st.sidebar.button("🔄 Φόρτωση Δεδομένων", type="primary")
 
 # ============================================================
-# ΣΥΝΑΡΤΗΣΕΙΣ (Με Caching για ταχύτητα στο Cloud)
+# ΣΥΝΑΡΤΗΣΕΙΣ ΛΗΨΗΣ ΔΕΔΟΜΕΝΩΝ
 # ============================================================
 
-@st.cache_data(ttl=3600)  # Κρατάει τα δεδομένα στη μνήμη για 1 ώρα
+@st.cache_data(ttl=3600)
 def get_stock_data(symbol, period):
     try:
         ticker_obj = yf.Ticker(symbol)
+        # Μέθοδος 1
         df = ticker_obj.history(period=period)
+        
+        # Μέθοδος 2 (Backup αν η πρώτη αποτύχει)
+        if df.empty:
+            df = yf.download(symbol, period=period, progress=False)
+            
         if df.empty:
             return None, None
+            
+        # Καθαρισμός στηλών (για συμβατότητα με νέες εκδόσεις yfinance)
+        if isinstance(df.columns, pd.MultiIndex):
+            df.columns = df.columns.get_level_values(0)
+            
         return df, ticker_obj
-    except Exception as e:
+    except Exception:
         return None, None
 
 def calculate_metrics(df, ticker_obj):
     metrics = {}
-    if df is None or df.empty: return metrics
-    
-    current_price = df['Close'].iloc[-1]
-    start_price = df['Close'].iloc[0]
-    roi = ((current_price - start_price) / start_price) * 100
-    
-    metrics['Τρέχουσα Τιμή'] = f"${current_price:.2f}"
-    metrics['ROI (%)'] = f"{roi:+.2f}%"
-    metrics['Υψηλό Περιόδου'] = f"${df['High'].max():.2f}"
-    metrics['Χαμηλό Περιόδου'] = f"${df['Low'].min():.2f}"
-    
-    daily_returns = df['Close'].pct_change().dropna()
-    metrics['Μεταβλητότητα (%)'] = f"{(daily_returns.std() * 100):.2f}%"
-
     try:
-        info = ticker_obj.info
-        if 'marketCap' in info:
-            cap = info['marketCap']
-            metrics['Κεφαλαιοποίηση'] = f"${cap/1e9:.2f}B" if cap > 1e9 else f"${cap/1e6:.2f}M"
-    except: pass
+        if df is None or df.empty: return metrics
+        
+        current_price = float(df['Close'].iloc[-1])
+        start_price = float(df['Close'].iloc[0])
+        roi = ((current_price - start_price) / start_price) * 100
+        
+        metrics['Τρέχουσα Τιμή'] = f"${current_price:.2f}"
+        metrics['ROI (%)'] = f"{roi:+.2f}%"
+        metrics['Υψηλό Περιόδου'] = f"${df['High'].max():.2f}"
+        metrics['Χαμηλό Περιόδου'] = f"${df['Low'].min():.2f}"
+        
+        daily_returns = df['Close'].pct_change().dropna()
+        metrics['Μεταβλητότητα (%)'] = f"{(daily_returns.std() * 100):.2f}%"
+    except:
+        pass
     return metrics
 
-# --- Συναρτήσεις Γραφημάτων ---
-def plot_price_chart(data_dict):
-    fig = go.Figure()
-    for symbol, df in data_dict.items():
-        normalized = (df['Close'] / df['Close'].iloc[0]) * 100
-        fig.add_trace(go.Scatter(x=df.index, y=normalized, mode='lines', name=symbol))
-    fig.update_layout(title="Σύγκριση Απόδοσης (Βάση 100)", height=450)
-    return fig
-
-def plot_candlestick(symbol, df):
-    fig = go.Figure(data=[go.Candlestick(x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'])])
-    fig.update_layout(title=f"Candlestick Chart — {symbol}", xaxis_rangeslider_visible=False)
-    return fig
-
 # ============================================================
-# ΚΥΡΙΟ ΜΕΡΟΣ
+# ΚΥΡΙΟ ΜΕΡΟΣ ΕΦΑΡΜΟΓΗΣ
 # ============================================================
 
 if load_data:
     symbols = [s.strip().upper() for s in symbols_input.split(',') if s.strip()]
     
-    with st.spinner("Γίνεται λήψη δεδομένων από Yahoo Finance..."):
-        data_dict, ticker_dict, errors = {}, {}, []
+    with st.spinner("Λήψη δεδομένων..."):
+        data_dict = {}
+        ticker_dict = {}
+        errors = []
+        
         for sym in symbols:
             df, ticker = get_stock_data(sym, selected_period)
-            if df is not None:
+            if df is not None and not df.empty:
                 data_dict[sym] = df
                 ticker_dict[sym] = ticker
             else:
                 errors.append(sym)
 
     if errors:
-        st.error(f"❌ Αδυναμία εύρεσης δεδομένων για: {', '.join(errors)}. Ελέγξτε αν τα σύμβολα είναι σωστά (π.χ. AAPL αντί για Apple).")
+        st.error(f"❌ Δεν βρέθηκαν δεδομένα για: {', '.join(errors)}. Δοκιμάστε ξανά σε λίγο ή ελέγξτε τα σύμβολα.")
 
     if data_dict:
-        tab1, tab2, tab3 = st.tabs(["📊 Γραφήματα", "📋 Δείκτες", "📥 Εξαγωγή"])
+        tab1, tab2, tab3 = st.tabs(["📊 Απόδοση", "🕯️ Candlesticks", "📋 Δείκτες"])
         
         with tab1:
-            st.plotly_chart(plot_price_chart(data_dict), use_container_width=True)
-            selected_sym = st.selectbox("Λεπτομερές γράφημα (Candlestick):", list(data_dict.keys()))
-            st.plotly_chart(plot_candlestick(selected_sym, data_dict[selected_sym]), use_container_width=True)
+            # Γράφημα Σύγκρισης
+            fig = go.Figure()
+            for sym, df in data_dict.items():
+                norm = (df['Close'] / df['Close'].iloc[0]) * 100
+                fig.add_trace(go.Scatter(x=df.index, y=norm, mode='lines', name=sym))
+            fig.update_layout(title="Σύγκριση Απόδοσης (Βάση 100)", hovermode="x unified")
+            st.plotly_chart(fig, use_container_width=True)
 
         with tab2:
-            for sym in data_dict:
-                with st.expander(f"📌 {sym} - Στατιστικά", expanded=True):
-                    m = calculate_metrics(data_dict[sym], ticker_dict[sym])
-                    cols = st.columns(len(m))
-                    for i, (k, v) in enumerate(m.items()):
-                        cols[i].metric(label=k, value=v)
+            s_candle = st.selectbox("Επιλέξτε σύμβολο για ανάλυση:", list(data_dict.keys()))
+            df_c = data_dict[s_candle]
+            fig_c = go.Figure(data=[go.Candlestick(
+                x=df_c.index, open=df_c['Open'], high=df_c['High'], low=df_c['Low'], close=df_c['Close']
+            )])
+            fig_c.update_layout(title=f"Candlestick Chart - {s_candle}", xaxis_rangeslider_visible=False)
+            st.plotly_chart(fig_c, use_container_width=True)
 
         with tab3:
-            for sym, df in data_dict.items():
-                st.download_button(f"⬇️ Download {sym} CSV", df.to_csv().encode('utf-8'), f"{sym}.csv", "text/csv")
+            for sym in data_dict:
+                with st.expander(f"📊 Στατιστικά για {sym}", expanded=True):
+                    m = calculate_metrics(data_dict[sym], ticker_dict[sym])
+                    if m:
+                        cols = st.columns(len(m))
+                        for i, (k, v) in enumerate(m.items()):
+                            cols[i].metric(label=k, value=v)
 else:
-    st.info("👈 Συμπληρώστε τα σύμβολα αριστερά και πατήστε 'Φόρτωση Δεδομένων'")
+    st.info("👈 Εισάγετε σύμβολα στο μενού και πατήστε το κουμπί για να ξεκινήσετε.")
